@@ -23,35 +23,26 @@ extern void WFInitializeProcessWithOptions(void);
 -(id)recordWithDescriptor:(id)d error:(NSError **)e;
 -(id)initWithRecord:(id)r storageProvider:(id)s error:(NSError **)e;
 -(void)preloadActionRegistryIfNeeded;
+-(id)sortedVisibleWorkflows;
+-(id)createWorkflowWithError:(NSError **)e;
++(id)workflowWithReference:(id)r storageProvider:(id)sp error:(NSError **)e;
+-(void)workflowWizardNameViewController:(id)v didFinishWithName:(NSString *)n;
+-(id)delegate;
 @end
 
-@interface WFCollection : NSObject
-
+WEAK_IMPORT_ATTRIBUTE @interface WFWorkflowWizardNameViewController : UIViewController
 @end
 
-@implementation WFCollection
-
-
--(id)database
-{
-	return [NSClassFromString(@"WFDatabase") defaultDatabase];
-}
-
--(id)descriptors
-{
+@implementation WFWorkflowWizardNameViewController (Mz)
+-(UITableViewCell *)nameCell {
+	
+	for (UIView *v in [self.view subviews])
+	{
+		if ([v isKindOfClass:NSClassFromString(@"UITableViewCell")])
+			return (UITableViewCell *)v;
+	}
 	return nil;
 }
-
--(void)addObserver:(id)s
-{
-	
-}
-
--(int)count
-{
-	return 1;
-}
-
 @end
 
 @implementation AppDelegate
@@ -62,8 +53,12 @@ extern void WFInitializeProcessWithOptions(void);
 	dlopen("/System/Library/PrivateFrameworks/ActionKit.framework/ActionKit", 0x1);
 
 	WFInitializeProcessWithOptions();
+
+    id db = [NSClassFromString(@"WFDatabase") defaultDatabase];
 	
-	UIViewController *c = [[NSClassFromString(@"WFEditableLibraryViewController") alloc] initWithCollection:[WFCollection new]];
+	UIViewController *c = [[NSClassFromString(@"WFEditableLibraryViewController") alloc] initWithCollection:[db sortedVisibleWorkflows]];
+    [c loadViewIfNeeded];
+    [[c valueForKey:@"resultsController"] setValue:self forKey:@"cellDelegate"];
 	
 	UINavigationController *nc = [[UINavigationController alloc] initWithRootViewController:c];
 	
@@ -76,12 +71,18 @@ extern void WFInitializeProcessWithOptions(void);
 	self.window.windowScene.titlebar.titleVisibility = UITitlebarTitleVisibilityHidden;
 	[self.window makeKeyAndVisible];
 
-	c.navigationItem.rightBarButtonItem.action = @selector(showWF:);
+	c.navigationItem.rightBarButtonItem.action = @selector(createWF:);
 	c.navigationItem.rightBarButtonItem.target= self;
 	
 	[NSClassFromString(@"WFHomeComposeViewController") preloadActionRegistryIfNeeded];
 
 	return YES;
+}
+
+- (void)workflowCellDidRequestComposeUI:(id)cell forWorkflowReference:(id)wfr {
+    id db = [NSClassFromString(@"WFDatabase") defaultDatabase];
+    id wf = [NSClassFromString(@"WFWorkflow") workflowWithReference:wfr storageProvider:db error:nil];
+    [self showEditorForWF:wf];
 }
 
 -(void)importWF
@@ -93,7 +94,7 @@ extern void WFInitializeProcessWithOptions(void);
 
 	id record = [provider recordWithDescriptor:desc error:nil];
 	if (record) {
-		id wflow = [[NSClassFromString(@"WFWorkflow") alloc] initWithRecord:record storageProvider:nil error:nil];
+		id wflow = [[NSClassFromString(@"WFWorkflow") alloc] initWithRecord:record storageProvider:provider error:nil];
 		[self showEditorForWF:wflow];
 	}
 }
@@ -107,9 +108,12 @@ extern void WFInitializeProcessWithOptions(void);
 	[self.window.rootViewController presentViewController:edit animated:YES completion:nil];
 }
 
--(void)showWF:(id)sender
+-(void)createWF:(id)sender
 {
-	id wf = [NSClassFromString(@"WFWorkflow") new];
+    id db = [NSClassFromString(@"WFDatabase") defaultDatabase];
+
+    id wfr = [db createWorkflowWithError:nil];
+    id wf = [NSClassFromString(@"WFWorkflow") workflowWithReference:wfr storageProvider:db error:nil];
 	
 	[self showEditorForWF:wf];
 }
